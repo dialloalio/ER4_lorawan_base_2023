@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 #include <stdio.h>
-
+#include "CayenneLPP.h"
 #include "lorawan/LoRaWANInterface.h"
 #include "lorawan/system/lorawan_data_structures.h"
 #include "events/EventQueue.h"
@@ -32,6 +32,23 @@ using namespace events;
 // If longer messages are used, these buffers must be changed accordingly.
 uint8_t tx_buffer[30];
 uint8_t rx_buffer[30];
+
+#define MAX_SIZE 200 // depends on spreading factor and frequency used
+
+CayenneLPP Payload(MAX_SIZE);
+
+float celsius = -4.1;
+float accel[] = {1.234, -1.234, 0};
+float rh = 30;
+float hpa = 1014.1;
+float latitude = 42.3519;
+float longitude = -87.9094;
+float altitude=10;
+
+int size = 0;
+
+
+
 
 /*
  * Sets up an application dependent transmission timer in ms. Used only when Duty Cycling is off for testing
@@ -149,7 +166,9 @@ int main(void)
  * Sends a message to the Network Server
  */
 static void send_message()
+
 {
+
     uint16_t packet_len;
     int16_t retcode;
     int32_t sensor_value;
@@ -164,11 +183,19 @@ static void send_message()
         return;
     }
 
-    packet_len = sprintf((char *) tx_buffer, "Dummy Sensor Value is %d",
-                         sensor_value);
+  /*  packet_len = sprintf((char *) tx_buffer, "Dummy Sensor Value is %d",
+                         sensor_value);*/
+                         
+    Payload.reset();
+    size = Payload.addTemperature(1, (float) sensor_value*10.0);    
+   // LORA_SEND(Payload.getBuffer(), Payload.getSize());       
+    // Payload.copy(tx_buffer);          
+      retcode = lorawan.send(MBED_CONF_LORA_APP_PORT, Payload.getBuffer(), Payload.getSize(),
+                           MSG_UNCONFIRMED_FLAG);                
+                         
 
-    retcode = lorawan.send(MBED_CONF_LORA_APP_PORT, tx_buffer, packet_len,
-                           MSG_UNCONFIRMED_FLAG);
+  /*  retcode = lorawan.send(MBED_CONF_LORA_APP_PORT, tx_buffer, packet_len,
+                           MSG_UNCONFIRMED_FLAG);*/
 
     if (retcode < 0) {
         retcode == LORAWAN_STATUS_WOULD_BLOCK ? printf("send - WOULD BLOCK\r\n")
