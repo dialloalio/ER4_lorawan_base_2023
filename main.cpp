@@ -52,19 +52,18 @@ int size = 0;
 
 DigitalOut Alarme (PC_13);// alarme LED output
 Servo Myservo(PA_7); //servomotor output
-
 TH02 MyTH02 (I2C_SDA,I2C_SCL,TH02_I2C_ADDR<<1);// connect hsensor on RX2 TX2
 /*
  * Sets up an application dependent transmission timer in ms. Used only when Duty Cycling is off for testing
  */
-#define TX_TIMER                        10000
+#define TX_TIMER                        20000
 
 /**
  * Maximum number of events for the event queue.
  * 10 is the safe number for the stack events, however, if application
  * also uses the queue for whatever purposes, this number should be increased.
  */
-#define MAX_NUMBER_OF_EVENTS            10
+#define MAX_NUMBER_OF_EVENTS            30
 
 /**
  * Maximum number of retries for CONFIRMED messages before giving up
@@ -189,20 +188,15 @@ static void send_message()
     int16_t retcode;
     int32_t sensor_value, rh_value;
 
-  MyTH02.startTempConv(true,true);
+ /*MyTH02.startTempConv(true,true);
     iTime= MyTH02.waitEndConversion();// wait until onversion  is done
      iTempbrute= MyTH02.getConversionValue();
     sensor_value=MyTH02.getLastRawTemp();
     printf ("\n\r temp value=%d  %d",sensor_value,iTempbrute );
-  
-  MyTH02.startRHConv(true,true);
-       iTime= MyTH02.waitEndConversion();// wait until onversion  is done
-         printf ("\n\r time=%d",iTime);
-      iRHbrute= MyTH02.getConversionValue();
-        rh_value=MyTH02.getLastRawRH();
-          printf ("\n\r RH value=%d  %d",rh_value,iRHbrute );
+  */
+ 
 
-/*
+
     if (ds1820.begin()) {
         ds1820.startConversion();
         sensor_value = ds1820.read();
@@ -211,24 +205,14 @@ static void send_message()
     } else {
         printf("\r\n No sensor found \r\n");
         return;
-    }*/
+    }
     
-  /*  packet_len = sprintf((char *) tx_buffer, "Dummy Sensor Value is %d",
-                         sensor_value);*/                       
+          
     Payload.reset();
     size = Payload.addTemperature(1, (float) sensor_value/100);    
-   // LORA_SEND(Payload.getBuffer(), Payload.getSize());       
-    // Payload.copy(tx_buffer);          
-    
-     // retcode = lorawan.send(MBED_CONF_LORA_APP_PORT, Payload.getBuffer(), Payload.getSize(),
-                         //  MSG_UNCONFIRMED_FLAG);                
-  /*  retcode = lorawan.send(MBED_CONF_LORA_APP_PORT, tx_buffer, packet_len,
-                           MSG_UNCONFIRMED_FLAG);*/
+   
 
 
-    size = size+Payload.addRelativeHumidity(2, (float) rh_value/100);    
-   // LORA_SEND(Payload.getBuffer(), Payload.getSize());       
-    // Payload.copy(tx_buffer);          
       retcode = lorawan.send(MBED_CONF_LORA_APP_PORT, Payload.getBuffer(), Payload.getSize(),
                            MSG_UNCONFIRMED_FLAG);                
 
@@ -265,33 +249,11 @@ static void receive_message()
 
     printf(" RX Data on port %u (%d bytes): ", port, retcode);
     for (uint8_t i = 0; i < retcode; i++) {
-        printf("%02x ", rx_buffer[i]);
+        printf("%02x", rx_buffer[i]);
     }
      printf("\n test value=%d", port); 
-   // printf("\r\n");
-  // num_port=port;
- /*  if (true)
-   {
-         printf("\n led=%d", (int)rx_buffer[0]); 
-            //Alarme.write((int) rx_buffer[0]);
-            }
-   if (port==2)
-   {
-         printf("\n servo=%d",(int) rx_buffer[0]); 
-      // Myservo.position ( rx_buffer[0]);
-     }   */      
-    switch (port){
-        case 1: // control led
-         printf("\n led=%d", (int)rx_buffer[0]); 
-            Alarme.write((int) rx_buffer[0]);
-        break;
-        case 2:// control servomotor
-        printf("\n servo=%d",(int) rx_buffer[0]); 
-      Myservo.position ( rx_buffer[0]);
-       break;
-       default: printf("\n port inconnu =%d",(int)port); 
-       break;
-        }
+ // code todo here
+   
         
     memset(rx_buffer, 0, sizeof(rx_buffer));
 }
@@ -336,6 +298,8 @@ static void lora_event_handler(lorawan_event_t event)
             receive_message();
             break;
         case RX_TIMEOUT:
+         printf("\r\n timeout in reception - Code = %d \r\n", event);
+            break;
         case RX_ERROR:
             printf("\r\n Error in reception - Code = %d \r\n", event);
             break;
