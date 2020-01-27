@@ -31,7 +31,7 @@
             "platform.stdio-convert-newlines": true,
             "platform.stdio-baud-rate": 115200,
             "platform.default-serial-baud-rate": 115200,
-            "lora.over-the-air-activation": true,
+            "lora.over-the-air-activation": false,
             "lora.duty-cycle-on": true,
             "lora.phy": "EU868",
           
