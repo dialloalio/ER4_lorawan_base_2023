@@ -179,24 +179,28 @@ int main(void)
     return 0;
 }
 
-/**
+/*************************************************************************************************************
  * Sends a message to the Network Server
- */
+ *************************************************************************************************************/
 static void send_message()
  {int iTime,iTempbrute,iRHbrute;   
  uint16_t packet_len;
     int16_t retcode;
     int32_t sensor_value, rh_value;
 
- /*MyTH02.startTempConv(true,true);
+ MyTH02.startTempConv(true,true);
     iTime= MyTH02.waitEndConversion();// wait until onversion  is done
      iTempbrute= MyTH02.getConversionValue();
-    sensor_value=MyTH02.getLastRawTemp();
-    printf ("\n\r temp value=%d  %d",sensor_value,iTempbrute );
-  */
- 
+   
+    printf ("\n\r temp value=%d",iTempbrute );
+  
+ MyTH02.startRHConv(true,true);
+    iTime= MyTH02.waitEndConversion();// wait until onversion  is done
+     iRHbrute= MyTH02.getConversionValue();
+   
+    printf ("\n\r humidity value=  %d",iRHbrute );
 
-
+/*
     if (ds1820.begin()) {
         ds1820.startConversion();
         sensor_value = ds1820.read();
@@ -206,13 +210,13 @@ static void send_message()
         printf("\r\n No sensor found \r\n");
         return;
     }
-    
+  */  
           
     Payload.reset();
-    size = Payload.addTemperature(1, (float) sensor_value/100);    
-   
+    size = Payload.addTemperature(1, (float) iTempbrute);    
+    size =size+ Payload.addRelativeHumidity(1, (float) iRHbrute);  
 
-
+// send complete message with cayenne format
       retcode = lorawan.send(MBED_CONF_LORA_APP_PORT, Payload.getBuffer(), Payload.getSize(),
                            MSG_UNCONFIRMED_FLAG);                
 
@@ -237,7 +241,7 @@ static void send_message()
  * Receive a message from the Network Server
  */
 static void receive_message()
-{int num_port;
+{int num_port, iPosition,iIndex;
     uint8_t port;
     int flags;
     int16_t retcode = lorawan.receive(rx_buffer, sizeof(rx_buffer), port, flags);
@@ -252,7 +256,27 @@ static void receive_message()
         printf("%02x", rx_buffer[i]);
     }
      printf("\n test value=%d", port); 
- // code todo here
+ // *****************************code todo here   ********************************************
+     switch (port){
+        case 3: // control led
+         printf("\n led=%d", (int)rx_buffer[0]); 
+            Alarme.write((int) rx_buffer[0]);
+        break;
+        case 4:// control servomotor
+        for (iIndex=0;iIndex<retcode;iIndex++)
+        {iPosition=iPosition*10+(rx_buffer[iIndex]-0x30);// convert receive string to angular position
+        } 
+              
+      
+        printf("\n servo=%d",(int) iPosition); 
+      Myservo.position ( iPosition ); // set servo motor position from 0 to 180
+       break;
+       default: printf("\n port inconnu =%d",(int)port); 
+       break;
+        }
+ 
+ 
+ //  ***************************** end code todo here   *****************************************
    
         
     memset(rx_buffer, 0, sizeof(rx_buffer));
