@@ -123,6 +123,7 @@ int main(void)
     setup_trace();
    //  th02 temerature sensor section 
     int iTemp,iTime,iTempbrute,iRH,iRHbrute;
+  //  Myservo.calibrate(0.0005, 45); 
     printf ("\n\r start reading TH02 for first time");
      MyTH02.startTempConv(true,true);
   
@@ -183,22 +184,23 @@ int main(void)
  * Sends a message to the Network Server
  *************************************************************************************************************/
 static void send_message()
- {int iTime,iTempbrute,iRHbrute;   
+ {int iTime,iTempbrute,iRHbrute; 
+ float fTemp,fRH;  
  uint16_t packet_len;
     int16_t retcode;
     int32_t sensor_value, rh_value;
 
  MyTH02.startTempConv(true,true);
     iTime= MyTH02.waitEndConversion();// wait until onversion  is done
-     iTempbrute= MyTH02.getConversionValue();
+     fTemp= (float)MyTH02.getConversionValue()/10;
    
-    printf ("\n\r temp value=%d",iTempbrute );
+    printf ("\n\r temp value=%2.1f",fTemp);
   
  MyTH02.startRHConv(true,true);
     iTime= MyTH02.waitEndConversion();// wait until onversion  is done
-     iRHbrute= MyTH02.getConversionValue();
+     fRH= (float) MyTH02.getConversionValue()/10;
    
-    printf ("\n\r humidity value=  %d",iRHbrute );
+    printf ("\n\r humidity value=  %2.1f",fRH );
 
 /*
     if (ds1820.begin()) {
@@ -213,8 +215,8 @@ static void send_message()
   */  
           
     Payload.reset();
-    size = Payload.addTemperature(1, (float) iTempbrute);    
-    size =size+ Payload.addRelativeHumidity(1, (float) iRHbrute);  
+    size = Payload.addTemperature(1, (float) fTemp);    
+    size =size+ Payload.addRelativeHumidity(1, fRH);  
 
 // send complete message with cayenne format
       retcode = lorawan.send(MBED_CONF_LORA_APP_PORT, Payload.getBuffer(), Payload.getSize(),
@@ -241,7 +243,7 @@ static void send_message()
  * Receive a message from the Network Server
  */
 static void receive_message()
-{int num_port, iPosition,iIndex;
+{int num_port, iPosition=0,iIndex,iEtatAlarme;
     uint8_t port;
     int flags;
     int16_t retcode = lorawan.receive(rx_buffer, sizeof(rx_buffer), port, flags);
@@ -255,12 +257,18 @@ static void receive_message()
     for (uint8_t i = 0; i < retcode; i++) {
         printf("%02x", rx_buffer[i]);
     }
-     printf("\n test value=%d", port); 
+    // printf("\n test value=%d", port); 
  // *****************************code todo here   ********************************************
      switch (port){
         case 3: // control led
          printf("\n led=%d", (int)rx_buffer[0]); 
-            Alarme.write((int) rx_buffer[0]);
+          if ((rx_buffer[0]-0x30)==0)
+          
+          iEtatAlarme=0;
+          else iEtatAlarme=1;
+            Alarme.write(iEtatAlarme);
+            
+            printf("\n alarme=%d",iEtatAlarme); 
         break;
         case 4:// control servomotor
         for (iIndex=0;iIndex<retcode;iIndex++)
@@ -268,8 +276,8 @@ static void receive_message()
         } 
               
       
-        printf("\n servo=%d",(int) iPosition); 
-      Myservo.position ( iPosition ); // set servo motor position from 0 to 180
+        printf("\n servo position =%d",iPosition); 
+      Myservo.position ( iPosition-45 ); // set servo motor position from 0 to 180
        break;
        default: printf("\n port inconnu =%d",(int)port); 
        break;
