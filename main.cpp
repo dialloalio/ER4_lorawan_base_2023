@@ -216,7 +216,7 @@ static void send_message()
           
     Payload.reset();
     size = Payload.addTemperature(1, (float) fTemp);    
-    size =size+ Payload.addRelativeHumidity(1, fRH);  
+    size =size+ Payload.addRelativeHumidity(2, fRH);  
 
 // send complete message with cayenne format
       retcode = lorawan.send(MBED_CONF_LORA_APP_PORT, Payload.getBuffer(), Payload.getSize(),
