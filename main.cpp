@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 #include <stdio.h>
-#include "th02.h"
+#include "driver_mbed_TH02.h"
 #include "CayenneLPP.h"
 #include "lorawan/LoRaWANInterface.h"
 #include "lorawan/system/lorawan_data_structures.h"
@@ -39,6 +39,7 @@ uint8_t rx_buffer[30];
 
 CayenneLPP Payload(MAX_SIZE);
 
+// Dummy values
 float celsius = -4.1;
 float accel[] = {1.234, -1.234, 0};
 float rh = 30;
@@ -50,20 +51,22 @@ float altitude=10;
 int size = 0;
 
 
-DigitalOut Alarme (PC_13);// alarme LED output
-Servo Myservo(PA_7); //servomotor output
-TH02 MyTH02 (I2C_SDA,I2C_SCL,TH02_I2C_ADDR<<1);// connect hsensor on RX2 TX2
+//DigitalOut Alarme (PC_13);    // alarme LED output
+DigitalOut Alarme (LED2);       // alarme LED output
+Servo Myservo(PA_7);            // servomotor output
+//TH02 MyTH02 (I2C_SDA,I2C_SCL,TH02_I2C_ADDR<<1);// connect hsensor on RX2 TX2
+
 /*
  * Sets up an application dependent transmission timer in ms. Used only when Duty Cycling is off for testing
  */
-#define TX_TIMER                        20000
+#define TX_TIMER                        10000
 
 /**
  * Maximum number of events for the event queue.
  * 10 is the safe number for the stack events, however, if application
  * also uses the queue for whatever purposes, this number should be increased.
  */
-#define MAX_NUMBER_OF_EVENTS            30
+#define MAX_NUMBER_OF_EVENTS            10
 
 /**
  * Maximum number of retries for CONFIRMED messages before giving up
@@ -75,10 +78,6 @@ TH02 MyTH02 (I2C_SDA,I2C_SCL,TH02_I2C_ADDR<<1);// connect hsensor on RX2 TX2
  */
 #define PC_9                            0
 
-/**
- * Dummy sensor class object
- */
-DS1820  ds1820(PC_9);
 
 /**
 * This event queue is the global event queue for both the
@@ -109,10 +108,8 @@ static lorawan_app_callbacks_t callbacks;
 
 void servo(uint8_t uAngle)
 {
-    
-    }
 
-
+}
 
 /**
  * Entry point for application
@@ -121,14 +118,6 @@ int main(void)
 {
     // setup tracing
     setup_trace();
-   //  th02 temerature sensor section 
-    int iTemp,iTime,iTempbrute,iRH,iRHbrute;
-  //  Myservo.calibrate(0.0005, 45); 
-    printf ("\n\r start reading TH02 for first time");
-     MyTH02.startTempConv(true,true);
-  
-
-
 
     // stores the status of a call to LoRaWAN protocol
     lorawan_status_t retcode;
@@ -184,43 +173,27 @@ int main(void)
  * Sends a message to the Network Server
  *************************************************************************************************************/
 static void send_message()
- {int iTime,iTempbrute,iRHbrute; 
- float fTemp,fRH;  
- uint16_t packet_len;
+{
+    int iTime;
+    uint16_t packet_len;
     int16_t retcode;
-    int32_t sensor_value, rh_value;
 
- MyTH02.startTempConv(true,true);
-    iTime= MyTH02.waitEndConversion();// wait until onversion  is done
-     fTemp= (float)MyTH02.getConversionValue()/10;
-   
-    printf ("\n\r temp value=%2.1f",fTemp);
-  
- MyTH02.startRHConv(true,true);
-    iTime= MyTH02.waitEndConversion();// wait until onversion  is done
-     fRH= (float) MyTH02.getConversionValue()/10;
-   
-    printf ("\n\r humidity value=  %2.1f",fRH );
+    float fTemp,fHumid;
 
-/*
-    if (ds1820.begin()) {
-        ds1820.startConversion();
-        sensor_value = ds1820.read();
-        printf("\r\n Dummy Sensor Value = %d \r\n", sensor_value);
-        ds1820.startConversion();
-    } else {
-        printf("\r\n No sensor found \r\n");
-        return;
-    }
-  */  
-          
+    // Read Sensor temp and humidity values
+    fTemp = myTH02.ReadTemperature();
+    printf("Temp=%.2f\t",fTemp);
+    fHumid = myTH02.ReadHumidity();
+    printf("Humidity=%.2f\n",fHumid);
+
+    // Payload is in Cayenne format
     Payload.reset();
-    size = Payload.addTemperature(1, (float) fTemp);    
-    size =size+ Payload.addRelativeHumidity(2, fRH);  
+    size = Payload.addTemperature(1, (float) fTemp);    // Add Temp in payload
+    size = size+ Payload.addRelativeHumidity(2, fHumid);    // Add Humidity in payload
 
-// send complete message with cayenne format
-      retcode = lorawan.send(MBED_CONF_LORA_APP_PORT, Payload.getBuffer(), Payload.getSize(),
-                           MSG_UNCONFIRMED_FLAG);                
+    // Send complete message with cayenne format
+    retcode = lorawan.send(MBED_CONF_LORA_APP_PORT, Payload.getBuffer(), Payload.getSize(),
+                           MSG_UNCONFIRMED_FLAG);
 
     if (retcode < 0) {
         retcode == LORAWAN_STATUS_WOULD_BLOCK ? printf("send - WOULD BLOCK\r\n")
@@ -243,7 +216,8 @@ static void send_message()
  * Receive a message from the Network Server
  */
 static void receive_message()
-{int num_port, iPosition=0,iIndex,iEtatAlarme;
+{
+    int num_port, iPosition=0,iIndex,iEtatAlarme;
     uint8_t port;
     int flags;
     int16_t retcode = lorawan.receive(rx_buffer, sizeof(rx_buffer), port, flags);
@@ -257,36 +231,35 @@ static void receive_message()
     for (uint8_t i = 0; i < retcode; i++) {
         printf("%02x", rx_buffer[i]);
     }
-    // printf("\n test value=%d", port); 
- // *****************************code todo here   ********************************************
-     switch (port){
+
+    // printf("\n test value=%d", port);
+    // *****************************code todo here   ********************************************
+    switch (port) {
         case 3: // control led
-         printf("\n led=%d", (int)rx_buffer[0]); 
-          if ((rx_buffer[0]-0x30)==0)
-          
-          iEtatAlarme=0;
-          else iEtatAlarme=1;
+            printf("\n led=%d", (int)rx_buffer[0]);
+            //if ((rx_buffer[0]-0x30)==0)
+            if (rx_buffer[0]==0)
+                iEtatAlarme=0;
+            else 
+                iEtatAlarme=1;
             Alarme.write(iEtatAlarme);
-            
-            printf("\n alarme=%d",iEtatAlarme); 
-        break;
-        case 4:// control servomotor
-        for (iIndex=0;iIndex<retcode;iIndex++)
-        {iPosition=iPosition*10+(rx_buffer[iIndex]-0x30);// convert receive string to angular position
-        } 
-              
-      
-        printf("\n servo position =%d",iPosition); 
-      Myservo.position ( iPosition-45 ); // set servo motor position from 0 to 180
-       break;
-       default: printf("\n port inconnu =%d",(int)port); 
-       break;
-        }
- 
- 
- //  ***************************** end code todo here   *****************************************
-   
-        
+
+            printf("\n alarme=%d",iEtatAlarme);
+            break;
+        case 4: // control servomotor
+            for (iIndex=0; iIndex<retcode; iIndex++) {
+                iPosition = iPosition*10 + (rx_buffer[iIndex]-0x30);   // convert receive string to angular position
+            }
+
+            printf("\n Servo position =%d",iPosition);
+            Myservo.position ( iPosition-45 ); // set servo motor position from 0 to 180
+            break;
+        default:
+            printf("\n port inconnu =%d",(int)port);
+            break;
+    }
+
+//  ***************************** end code todo here   *****************************************
     memset(rx_buffer, 0, sizeof(rx_buffer));
 }
 
@@ -295,6 +268,7 @@ static void receive_message()
  */
 static void lora_event_handler(lorawan_event_t event)
 {
+    printf("\r\nEventCode = %d \r\n", event);
     switch (event) {
         case CONNECTED:
             printf("\r\n Connection - Successful \r\n");
@@ -330,7 +304,7 @@ static void lora_event_handler(lorawan_event_t event)
             receive_message();
             break;
         case RX_TIMEOUT:
-         printf("\r\n timeout in reception - Code = %d \r\n", event);
+            printf("\r\n timeout in reception - Code = %d \r\n", event);
             break;
         case RX_ERROR:
             printf("\r\n Error in reception - Code = %d \r\n", event);
